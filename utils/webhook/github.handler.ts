@@ -564,6 +564,39 @@ export async function githubWebhookHandler(
             console.log(reason);
             return reason;
         }
+    } else if (action === "labeled") {
+        const linearIssue = await linear.issue(syncedIssue.linearIssueId);
+        const team = await linearIssue.team;
+        const teamLabels = await team.labels();
+        const issueLabels = await linearIssue.labels();
+        const linearLabel = teamLabels.nodes.find(
+            label => label.name === body.label.name
+        );
+
+        if (linearLabel) {
+            if (
+                !issueLabels.nodes.find(label => label.name === body.label.name)
+            ) {
+                const response = await linear.issueUpdate(
+                    syncedIssue.linearIssueId,
+                    {
+                        labelIds: [
+                            ...issueLabels.nodes.map(label => label.id),
+                            linearLabel.id
+                        ]
+                    }
+                );
+
+                if (!response?.success) {
+                    throw new ApiError(
+                        "Error while adding label to Linear issue",
+                        500
+                    );
+                }
+            } else {
+                console.log("Team does not have the label ", body.label.name);
+            }
+        }
     }
 }
 
