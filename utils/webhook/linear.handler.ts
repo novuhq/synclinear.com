@@ -923,6 +923,15 @@ export async function linearWebhookHandler(
                 return skipReason("comment", data.issue!.id, true);
             }
 
+            if (!data.body.includes("sync-github:")) {
+                console.log(
+                    skipReason("comment", data.issue!.id, true),
+                    " skipping due to lack of sync-github:"
+                );
+
+                return skipReason("comment", data.issue!.id, true);
+            }
+
             // Overrides the outer-scope syncedIssue because comments do not come with teamId
             const syncedIssue = await prisma.syncedIssue.findFirst({
                 where: {
@@ -942,7 +951,9 @@ export async function linearWebhookHandler(
                 );
             }
 
-            const modifiedBody = await replaceMentions(data.body, "linear");
+            const modifiedBody = (
+                await replaceMentions(data.body, "linear")
+            ).replace("sync-github:", "");
 
             await got
                 .post(
