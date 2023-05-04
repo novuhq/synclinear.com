@@ -124,6 +124,7 @@ export const updateLinearWebhook = async (
     updates: WebhookUpdateInput
 ) => {
     const webhook = await getLinearWebhook(token, teamId);
+    console.log(webhook)
     if (!webhook?.id) {
         console.error(`Could not find webhook for Linear team ${teamId}`);
         return;
@@ -138,6 +139,10 @@ export const updateLinearWebhook = async (
         }
     }`;
 
+    console.log({
+        webhookId: webhook.id,
+        input: updates
+    })
     return await linearQuery(mutation, token, {
         webhookId: webhook.id,
         input: updates
