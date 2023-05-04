@@ -7,16 +7,23 @@ import {
     getAttachmentQuery,
     getSyncFooter,
     isNumber,
+    replaceStrikethroughTags,
     skipReason
 } from "../index";
 import { LinearClient } from "@linear/sdk";
-import { replaceMentions, upsertUser } from "../../pages/api/utils";
+import {
+    applyLabel,
+    createComment,
+    createLabel,
+    replaceMentions,
+    upsertUser
+} from "../../pages/api/utils";
 import got from "got";
 import { getLinearCycle, inviteMember } from "../linear";
 import { components } from "@octokit/openapi-types";
 import { linearQuery } from "../apollo";
 import { createMilestone, getGitHubFooter, setIssueMilestone } from "../github";
-import { ApiError, getIssueUpdateError, getOtherUpdateError } from "../errors";
+import { ApiError, getIssueUpdateError } from "../errors";
 
 export async function linearWebhookHandler(
     body: LinearWebhookPayload,
@@ -175,51 +182,30 @@ export async function linearWebhookHandler(
                     throw new ApiError("Could not find label.", 403);
                 }
 
-                const createdLabelResponse = await got.post(
-                    `https://api.github.com/repos/${repoFullName}/labels`,
-                    {
-                        json: {
-                            name: label.name,
-                            color: label.color.replace("#", ""),
-                            description: "Created by Linear-GitHub Sync"
-                        },
-                        headers: {
-                            Authorization: githubAuthHeader,
-                            "User-Agent": userAgentHeader
-                        },
-                        throwHttpErrors: false
-                    }
-                );
+                const { createdLabel, error: createLabelError } =
+                    await createLabel({
+                        repoFullName,
+                        label,
+                        githubAuthHeader,
+                        userAgentHeader
+                    });
 
-                const createdLabelData = JSON.parse(createdLabelResponse.body);
-
-                if (
-                    createdLabelResponse.statusCode > 201 &&
-                    createdLabelData.errors?.[0]?.code !== "already_exists"
-                ) {
+                if (createLabelError) {
                     console.log("Could not create label.");
                     throw new ApiError("Could not create label.", 403);
                 }
 
-                const labelName =
-                    createdLabelData.errors?.[0]?.code === "already_exists"
-                        ? label.name
-                        : createdLabelData.name;
+                const labelName = createdLabel ? createdLabel.name : label.name;
 
-                const appliedLabelResponse = await got.post(
-                    `${GITHUB.REPO_ENDPOINT}/${syncedIssue.GitHubRepo.repoName}/issues/${syncedIssue.githubIssueNumber}/labels`,
-                    {
-                        json: {
-                            labels: [labelName]
-                        },
-                        headers: {
-                            Authorization: githubAuthHeader,
-                            "User-Agent": userAgentHeader
-                        }
-                    }
-                );
+                const { error: applyLabelError } = await applyLabel({
+                    repoFullName: syncedIssue.GitHubRepo.repoName,
+                    issueNumber: syncedIssue.githubIssueNumber,
+                    labelNames: [labelName],
+                    githubAuthHeader,
+                    userAgentHeader
+                });
 
-                if (appliedLabelResponse.statusCode > 201) {
+                if (applyLabelError) {
                     console.log("Could not apply label.");
                     throw new ApiError("Could not apply label.", 403);
                 } else {
@@ -350,37 +336,21 @@ export async function linearWebhookHandler(
                     continue;
                 }
 
-                const createdLabelResponse = await got.post(
-                    `https://api.github.com/repos/${repoFullName}/labels`,
-                    {
-                        json: {
-                            name: label.name,
-                            color: label.color?.replace("#", ""),
-                            description: "Created by Linear-GitHub Sync"
-                        },
-                        headers: {
-                            Authorization: githubAuthHeader,
-                            "User-Agent": userAgentHeader
-                        },
-                        throwHttpErrors: false
-                    }
-                );
+                const { createdLabel, error } = await createLabel({
+                    repoFullName,
+                    label,
+                    githubAuthHeader,
+                    userAgentHeader
+                });
 
-                const createdLabelData = JSON.parse(createdLabelResponse.body);
-                if (
-                    createdLabelResponse.statusCode > 201 &&
-                    createdLabelData.errors?.[0]?.code !== "already_exists"
-                ) {
+                if (error) {
                     console.log(
                         `Could not create GH label "${label.name}" in ${repoFullName}.`
                     );
                     continue;
                 }
 
-                const labelName =
-                    createdLabelData.errors?.[0]?.code === "already_exists"
-                        ? label.name
-                        : createdLabelData.name;
+                const labelName = createdLabel ? createdLabel.name : label.name;
 
                 labelNames.push(labelName);
             }
@@ -388,54 +358,35 @@ export async function linearWebhookHandler(
             // Add priority label if applicable
             if (!!data.priority && SHARED.PRIORITY_LABELS[data.priority]) {
                 const priorityLabel = SHARED.PRIORITY_LABELS[data.priority];
-                const createdLabelResponse = await got.post(
-                    `https://api.github.com/repos/${repoFullName}/labels`,
-                    {
-                        json: {
-                            name: priorityLabel.name,
-                            color: priorityLabel.color?.replace("#", ""),
-                            description: "Created by Linear-GitHub Sync"
-                        },
-                        headers: {
-                            Authorization: githubAuthHeader,
-                            "User-Agent": userAgentHeader
-                        },
-                        throwHttpErrors: false
-                    }
-                );
+                const { createdLabel, error } = await createLabel({
+                    repoFullName,
+                    label: priorityLabel,
+                    githubAuthHeader,
+                    userAgentHeader
+                });
 
-                const createdLabelData = JSON.parse(createdLabelResponse.body);
-                if (
-                    createdLabelResponse.statusCode > 201 &&
-                    createdLabelData.errors?.[0]?.code !== "already_exists"
-                ) {
+                if (error) {
                     console.log(
                         `Could not create priority label "${priorityLabel.name}" in ${repoFullName}.`
                     );
                 } else {
-                    const labelName =
-                        createdLabelData.errors?.[0]?.code === "already_exists"
-                            ? priorityLabel.name
-                            : createdLabelData.name;
+                    const labelName = createdLabel
+                        ? createdLabel.name
+                        : priorityLabel.name;
 
                     labelNames.push(labelName);
                 }
             }
 
-            const appliedLabelResponse = await got.post(
-                `${issuesEndpoint}/${createdIssueData.number}/labels`,
-                {
-                    json: {
-                        labels: labelNames
-                    },
-                    headers: {
-                        Authorization: githubAuthHeader,
-                        "User-Agent": userAgentHeader
-                    }
-                }
-            );
+            const { error: applyLabelError } = await applyLabel({
+                repoFullName,
+                issueNumber: createdIssueData.number,
+                labelNames,
+                githubAuthHeader,
+                userAgentHeader
+            });
 
-            if (appliedLabelResponse.statusCode > 201) {
+            if (applyLabelError) {
                 console.log(
                     `Could not apply labels to #${createdIssueData.number} in ${repoFullName}.`
                 );
@@ -466,39 +417,25 @@ export async function linearWebhookHandler(
                     comment.body,
                     "linear"
                 );
+                const footer = getGitHubFooter(user.displayName);
 
-                await got
-                    .post(
-                        `${issuesEndpoint}/${createdIssueData.number}/comments`,
-                        {
-                            json: {
-                                body: `${
-                                    modifiedComment ?? ""
-                                }${getGitHubFooter(user.displayName)}`
-                            },
-                            headers: {
-                                Authorization: githubAuthHeader,
-                                "User-Agent": userAgentHeader
-                            }
-                        }
-                    )
+                const { error: commentError } = await createComment({
+                    repoFullName,
+                    issueNumber: createdIssueData.number,
+                    body: `${modifiedComment || ""}${footer}`,
+                    githubAuthHeader,
+                    userAgentHeader
+                });
 
-                    .then(commentResponse => {
-                        if (commentResponse.statusCode > 201)
-                            console.log(
-                                getOtherUpdateError(
-                                    "comment",
-                                    data,
-                                    createdIssueData,
-                                    createdIssueResponse,
-                                    JSON.parse(commentResponse.body)
-                                )
-                            );
-                        else
-                            console.log(
-                                `Created comment on GitHub issue #${createdIssueData.number} [${createdIssueData.id}] for Linear issue ${ticketName}.`
-                            );
-                    });
+                if (commentError) {
+                    console.log(
+                        `Failed to add comment to GitHub issue ${createdIssueData.number} for ${ticketName}.`
+                    );
+                } else {
+                    console.log(
+                        `Created comment on GitHub issue #${createdIssueData.number} [${createdIssueData.id}] for Linear issue ${ticketName}.`
+                    );
+                }
             }
         }
 
@@ -511,74 +448,71 @@ export async function linearWebhookHandler(
 
         // Title change
         if (updatedFrom.title && actionType === "Issue") {
-            await got
-                .patch(
-                    `${GITHUB.REPO_ENDPOINT}/${syncedIssue.GitHubRepo.repoName}/issues/${syncedIssue.githubIssueNumber}`,
-                    {
-                        json: {
-                            title: `[${ticketName}] ${data.title}`
-                        },
-                        headers: {
-                            Authorization: githubAuthHeader,
-                            "User-Agent": userAgentHeader
-                        }
+            const updatedIssueResponse = await got.patch(
+                `${GITHUB.REPO_ENDPOINT}/${syncedIssue.GitHubRepo.repoName}/issues/${syncedIssue.githubIssueNumber}`,
+                {
+                    json: { title: `[${ticketName}] ${data.title}` },
+                    headers: {
+                        Authorization: githubAuthHeader,
+                        "User-Agent": userAgentHeader
                     }
-                )
-                .then(updatedIssueResponse => {
-                    if (updatedIssueResponse.statusCode > 201)
-                        console.log(
-                            getIssueUpdateError(
-                                "title",
-                                data,
-                                syncedIssue,
-                                updatedIssueResponse
-                            )
-                        );
-                    else
-                        console.log(
-                            `Updated GitHub issue title for ${ticketName} [${data.id}] on GitHub issue #${syncedIssue.githubIssueNumber} [${syncedIssue.githubIssueId}].`
-                        );
-                });
+                }
+            );
+
+            if (updatedIssueResponse.statusCode > 201) {
+                console.log(
+                    getIssueUpdateError(
+                        "title",
+                        data,
+                        syncedIssue,
+                        updatedIssueResponse
+                    )
+                );
+            } else {
+                console.log(
+                    `Updated GitHub issue title for ${ticketName} [${data.id}] on GitHub issue #${syncedIssue.githubIssueNumber} [${syncedIssue.githubIssueId}].`
+                );
+            }
         }
 
         // Description change
         if (updatedFrom.description && actionType === "Issue") {
-            const modifiedDescription = await replaceMentions(
+            let modifiedDescription = await replaceMentions(
                 data.description,
                 "linear"
             );
 
-            await got
-                .patch(
-                    `${GITHUB.REPO_ENDPOINT}/${syncedIssue.GitHubRepo.repoName}/issues/${syncedIssue.githubIssueNumber}`,
-                    {
-                        json: {
-                            body: `${
-                                modifiedDescription ?? ""
-                            }\n\n<sub>${getSyncFooter()} | [${ticketName}](${url})</sub>`
-                        },
-                        headers: {
-                            Authorization: githubAuthHeader,
-                            "User-Agent": userAgentHeader
-                        }
-                    }
-                )
+            modifiedDescription = replaceStrikethroughTags(modifiedDescription);
 
-                .then(updatedIssueResponse => {
-                    if (updatedIssueResponse.statusCode > 201)
-                        console.log(
-                            getIssueUpdateError(
-                                "description",
-                                data,
-                                syncedIssue,
-                                updatedIssueResponse
-                            )
-                        );
-                    else
-                        console.log(
-                            `Updated GitHub issue description for ${ticketName} [${data.id}] on GitHub issue #${syncedIssue.githubIssueNumber} [${syncedIssue.githubIssueId}].`
-                        );
-                });
+            const updatedIssueResponse = await got.patch(
+                `${GITHUB.REPO_ENDPOINT}/${syncedIssue.GitHubRepo.repoName}/issues/${syncedIssue.githubIssueNumber}`,
+                {
+                    json: {
+                        body: `${
+                            modifiedDescription ?? ""
+                        }\n\n<sub>${getSyncFooter()} | [${ticketName}](${url})</sub>`
+                    },
+                    headers: {
+                        Authorization: githubAuthHeader,
+                        "User-Agent": userAgentHeader
+                    }
+                }
+            );
+
+            if (updatedIssueResponse.statusCode > 201) {
+                console.log(
+                    getIssueUpdateError(
+                        "description",
+                        data,
+                        syncedIssue,
+                        updatedIssueResponse
+                    )
+                );
+            } else {
+                console.log(
+                    `Updated GitHub issue description for ${ticketName} [${data.id}] on GitHub issue #${syncedIssue.githubIssueNumber} [${syncedIssue.githubIssueId}].`
+                );
+            }
         }
 
         // Cycle change
@@ -688,42 +622,37 @@ export async function linearWebhookHandler(
 
         // State change (eg. "Open" to "Done")
         if (updatedFrom.stateId) {
-            await got
-                .patch(
-                    `${GITHUB.REPO_ENDPOINT}/${syncedIssue.GitHubRepo.repoName}/issues/${syncedIssue.githubIssueNumber}`,
-                    {
-                        json: {
-                            state: [doneStateId, canceledStateId].includes(
-                                data.stateId
-                            )
-                                ? "closed"
-                                : "open",
-                            state_reason:
-                                doneStateId === data.stateId
-                                    ? "completed"
-                                    : "not_planned"
-                        },
-                        headers: {
-                            Authorization: githubAuthHeader,
-                            "User-Agent": userAgentHeader
-                        }
+            const state = [doneStateId, canceledStateId].includes(data.stateId)
+                ? "closed"
+                : "open";
+            const reason =
+                doneStateId === data.stateId ? "completed" : "not_planned";
+
+            const updatedIssueResponse = await got.patch(
+                `${GITHUB.REPO_ENDPOINT}/${syncedIssue.GitHubRepo.repoName}/issues/${syncedIssue.githubIssueNumber}`,
+                {
+                    json: { state, state_reason: reason },
+                    headers: {
+                        Authorization: githubAuthHeader,
+                        "User-Agent": userAgentHeader
                     }
-                )
-                .then(updatedIssueResponse => {
-                    if (updatedIssueResponse.statusCode > 201)
-                        console.log(
-                            getIssueUpdateError(
-                                "state",
-                                data,
-                                syncedIssue,
-                                updatedIssueResponse
-                            )
-                        );
-                    else
-                        console.log(
-                            `Updated GitHub issue state for ${ticketName} [${data.id}] on GitHub issue #${syncedIssue.githubIssueNumber} [${syncedIssue.githubIssueId}].`
-                        );
-                });
+                }
+            );
+
+            if (updatedIssueResponse.statusCode > 201) {
+                console.log(
+                    getIssueUpdateError(
+                        "state",
+                        data,
+                        syncedIssue,
+                        updatedIssueResponse
+                    )
+                );
+            } else {
+                console.log(
+                    `Updated GitHub issue state for ${ticketName} [${data.id}] on GitHub issue #${syncedIssue.githubIssueNumber} [${syncedIssue.githubIssueId}].`
+                );
+            }
         }
 
         // Assignee change
@@ -860,14 +789,47 @@ export async function linearWebhookHandler(
 
             // Add new priority label if not none
             const priorityLabel = priorityLabels[data.priority];
-            const createdLabelResponse = await got.post(
-                `https://api.github.com/repos/${repoFullName}/labels`,
+            const { createdLabel, error } = await createLabel({
+                repoFullName,
+                label: priorityLabel,
+                githubAuthHeader,
+                userAgentHeader
+            });
+
+            if (error) {
+                console.log("Could not create label.");
+                throw new ApiError("Could not create label.", 403);
+            }
+
+            const labelName = createdLabel
+                ? createdLabel.name
+                : priorityLabel.name;
+
+            const { error: applyLabelError } = await applyLabel({
+                repoFullName: syncedIssue.GitHubRepo.repoName,
+                issueNumber: syncedIssue.githubIssueNumber,
+                labelNames: [labelName],
+                githubAuthHeader,
+                userAgentHeader
+            });
+
+            if (applyLabelError) {
+                console.log("Could not apply label.");
+                throw new ApiError("Could not apply label.", 403);
+            } else {
+                console.log(
+                    `Applied priority label "${labelName}" to issue #${syncedIssue.githubIssueNumber}.`
+                );
+            }
+        }
+
+        if ("estimate" in updatedFrom) {
+            // Remove old estimate label
+            const prevLabelName = `${updatedFrom["estimate"]} points`;
+
+            const removedLabelResponse = await got.delete(
+                `${GITHUB.REPO_ENDPOINT}/${syncedIssue.GitHubRepo.repoName}/issues/${syncedIssue.githubIssueNumber}/labels/${prevLabelName}`,
                 {
-                    json: {
-                        name: priorityLabel.name,
-                        color: priorityLabel.color?.replace("#", ""),
-                        description: "Created by Linear-GitHub Sync"
-                    },
                     headers: {
                         Authorization: githubAuthHeader,
                         "User-Agent": userAgentHeader
@@ -876,40 +838,56 @@ export async function linearWebhookHandler(
                 }
             );
 
-            const createdLabelData = JSON.parse(createdLabelResponse.body);
-
-            if (
-                createdLabelResponse.statusCode > 201 &&
-                createdLabelData.errors?.[0]?.code !== "already_exists"
-            ) {
-                console.log("Could not create label.");
-                throw new ApiError("Could not create label.", 403);
+            if (removedLabelResponse.statusCode > 201) {
+                console.log(
+                    `Did not remove estimate label "${prevLabelName}".`
+                );
+            } else {
+                console.log(
+                    `Removed estimate "${prevLabelName}" from issue #${syncedIssue.githubIssueNumber}.`
+                );
             }
 
-            const labelName =
-                createdLabelData.errors?.[0]?.code === "already_exists"
-                    ? priorityLabel.name
-                    : createdLabelData.name;
+            if (!data["estimate"]) {
+                return `Removed estimate label "${prevLabelName}" from issue #${syncedIssue.githubIssueNumber}.`;
+            }
 
-            const appliedLabelResponse = await got.post(
-                `${GITHUB.REPO_ENDPOINT}/${syncedIssue.GitHubRepo.repoName}/issues/${syncedIssue.githubIssueNumber}/labels`,
-                {
-                    json: {
-                        labels: [labelName]
-                    },
-                    headers: {
-                        Authorization: githubAuthHeader,
-                        "User-Agent": userAgentHeader
-                    }
-                }
-            );
+            // Create new estimate label if not yet existent
+            const estimateLabel = {
+                name: `${data["estimate"]} points`,
+                color: "666"
+            };
 
-            if (appliedLabelResponse.statusCode > 201) {
+            const { createdLabel, error } = await createLabel({
+                repoFullName,
+                label: estimateLabel,
+                githubAuthHeader,
+                userAgentHeader
+            });
+
+            if (error) {
+                console.log("Could not create estimate label.");
+                throw new ApiError("Could not create estimate label.", 403);
+            }
+
+            const labelName = createdLabel
+                ? createdLabel.name
+                : estimateLabel.name;
+
+            const { error: applyLabelError } = await applyLabel({
+                repoFullName: syncedIssue.GitHubRepo.repoName,
+                issueNumber: syncedIssue.githubIssueNumber,
+                labelNames: [labelName],
+                githubAuthHeader,
+                userAgentHeader
+            });
+
+            if (applyLabelError) {
                 console.log("Could not apply label.");
                 throw new ApiError("Could not apply label.", 403);
             } else {
                 console.log(
-                    `Applied priority label "${labelName}" to issue #${syncedIssue.githubIssueNumber}.`
+                    `Applied estimate label "${labelName}" to issue #${syncedIssue.githubIssueNumber}.`
                 );
             }
         }
@@ -919,7 +897,6 @@ export async function linearWebhookHandler(
 
             if (data.id.includes(GITHUB.UUID_SUFFIX)) {
                 console.log(skipReason("comment", data.issue!.id, true));
-
                 return skipReason("comment", data.issue!.id, true);
             }
 
@@ -951,46 +928,26 @@ export async function linearWebhookHandler(
                 );
             }
 
-            const modifiedBody = (
-                await replaceMentions(data.body, "linear")
-            ).replace("sync-github:", "");
+            const modifiedBody = await replaceMentions(data.body, "linear").replace("sync-github:", "");
+            const footer = getGitHubFooter(data.user?.name);
 
-            await got
-                .post(
-                    `${GITHUB.REPO_ENDPOINT}/${syncedIssue.GitHubRepo.repoName}/issues/${syncedIssue.githubIssueNumber}/comments`,
-                    {
-                        json: {
-                            body: `${modifiedBody ?? ""}${getGitHubFooter(
-                                data.user?.name
-                            )}`
-                        },
-                        headers: {
-                            Authorization: githubAuthHeader,
-                            "User-Agent": userAgentHeader
-                        }
-                    }
-                )
+            const { error: commentError } = await createComment({
+                repoFullName: syncedIssue.GitHubRepo.repoName,
+                issueNumber: syncedIssue.githubIssueNumber,
+                body: `${modifiedBody || ""}${footer}`,
+                githubAuthHeader,
+                userAgentHeader
+            });
 
-                .then(commentResponse => {
-                    if (commentResponse.statusCode > 201)
-                        console.log(
-                            `Failed to update GitHub issue state for ${
-                                data.issue?.id
-                            } on GitHub issue #${
-                                syncedIssue.githubIssueNumber
-                            } [${
-                                syncedIssue.githubIssueId
-                            }], received status code ${
-                                commentResponse.statusCode
-                            }, body of ${formatJSON(
-                                JSON.parse(commentResponse.body)
-                            )}.`
-                        );
-                    else
-                        console.log(
-                            `Synced comment [${data.id}] for ${data.issue?.id} on GitHub issue #${syncedIssue.githubIssueNumber} [${syncedIssue.githubIssueId}].`
-                        );
-                });
+            if (commentError) {
+                console.log(
+                    `Failed to update GitHub issue state for ${data.issue?.id} on GitHub issue #${syncedIssue.githubIssueNumber}.`
+                );
+            } else {
+                console.log(
+                    `Synced comment [${data.id}] for ${data.issue?.id} on GitHub issue #${syncedIssue.githubIssueNumber} [${syncedIssue.githubIssueId}].`
+                );
+            }
         } else if (actionType === "Issue") {
             // Issue created
 
@@ -1111,38 +1068,21 @@ export async function linearWebhookHandler(
                     continue;
                 }
 
-                const createdLabelResponse = await got.post(
-                    `https://api.github.com/repos/${repoFullName}/labels`,
-                    {
-                        json: {
-                            name: label.name,
-                            color: label.color?.replace("#", ""),
-                            description: "Created by Linear-GitHub Sync"
-                        },
-                        headers: {
-                            Authorization: githubAuthHeader,
-                            "User-Agent": userAgentHeader
-                        },
-                        throwHttpErrors: false
-                    }
-                );
+                const { createdLabel, error } = await createLabel({
+                    repoFullName,
+                    label,
+                    githubAuthHeader,
+                    userAgentHeader
+                });
 
-                const createdLabelData = JSON.parse(createdLabelResponse.body);
-
-                if (
-                    createdLabelResponse.statusCode > 201 &&
-                    createdLabelData.errors?.[0]?.code !== "already_exists"
-                ) {
+                if (error) {
                     console.log(
                         `Could not create GH label "${label.name}" in ${repoFullName}.`
                     );
                     continue;
                 }
 
-                const labelName =
-                    createdLabelData.errors?.[0]?.code === "already_exists"
-                        ? label.name
-                        : createdLabelData.name;
+                const labelName = createdLabel ? createdLabel.name : label.name;
 
                 labelNames.push(labelName);
             }
@@ -1150,55 +1090,36 @@ export async function linearWebhookHandler(
             // Add priority label if applicable
             if (!!data.priority && SHARED.PRIORITY_LABELS[data.priority]) {
                 const priorityLabel = SHARED.PRIORITY_LABELS[data.priority];
-                const createdLabelResponse = await got.post(
-                    `https://api.github.com/repos/${repoFullName}/labels`,
-                    {
-                        json: {
-                            name: priorityLabel.name,
-                            color: priorityLabel.color?.replace("#", ""),
-                            description: "Created by Linear-GitHub Sync"
-                        },
-                        headers: {
-                            Authorization: githubAuthHeader,
-                            "User-Agent": userAgentHeader
-                        },
-                        throwHttpErrors: false
-                    }
-                );
 
-                const createdLabelData = JSON.parse(createdLabelResponse.body);
+                const { createdLabel, error } = await createLabel({
+                    repoFullName,
+                    label: priorityLabel,
+                    githubAuthHeader,
+                    userAgentHeader
+                });
 
-                if (
-                    createdLabelResponse.statusCode > 201 &&
-                    createdLabelData.errors?.[0]?.code !== "already_exists"
-                ) {
+                if (error) {
                     console.log(
                         `Could not create priority label "${priorityLabel.name}" in ${repoFullName}.`
                     );
                 } else {
-                    const labelName =
-                        createdLabelData.errors?.[0]?.code === "already_exists"
-                            ? priorityLabel.name
-                            : createdLabelData.name;
+                    const labelName = createdLabel
+                        ? createdLabel.name
+                        : priorityLabel.name;
 
                     labelNames.push(labelName);
                 }
             }
 
-            const appliedLabelResponse = await got.post(
-                `${issuesEndpoint}/${createdIssueData.number}/labels`,
-                {
-                    json: {
-                        labels: labelNames
-                    },
-                    headers: {
-                        Authorization: githubAuthHeader,
-                        "User-Agent": userAgentHeader
-                    }
-                }
-            );
+            const { error: applyLabelError } = await applyLabel({
+                repoFullName,
+                issueNumber: createdIssueData.number,
+                labelNames,
+                githubAuthHeader,
+                userAgentHeader
+            });
 
-            if (appliedLabelResponse.statusCode > 201) {
+            if (applyLabelError) {
                 console.log(
                     `Could not apply labels to #${createdIssueData.number} in ${repoFullName}.`
                 );
