@@ -18,9 +18,6 @@ CREATE TABLE "milestones" (
 -- CreateIndex
 CREATE UNIQUE INDEX "milestones_milestoneId_githubRepoId_cycleId_linearTeamId_key" ON "milestones"("milestoneId", "githubRepoId", "cycleId", "linearTeamId");
 
--- CreateIndex
-CREATE UNIQUE INDEX "syncs_githubUserId_linearUserId_githubRepoId_linearTeamId_key" ON "syncs"("githubUserId", "linearUserId", "githubRepoId", "linearTeamId");
-
 -- AddForeignKey
 ALTER TABLE "milestones" ADD CONSTRAINT "milestones_linearTeamId_fkey" FOREIGN KEY ("linearTeamId") REFERENCES "linear_teams"("teamId") ON DELETE RESTRICT ON UPDATE CASCADE;
 
