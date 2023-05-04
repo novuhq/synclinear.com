@@ -515,6 +515,7 @@ export async function linearWebhookHandler(
             }
         }
 
+        console.log(updatedFrom, actionType);
         // Cycle change
         if ("cycleId" in updatedFrom && actionType === "Issue") {
             if (!syncedIssue) {
@@ -578,6 +579,7 @@ export async function linearWebhookHandler(
                 const state: MilestoneState =
                     new Date(cycle.endsAt) > today ? "open" : "closed";
 
+                console.log('Creating milestone')
                 const createdMilestone = await createMilestone(
                     githubKey,
                     syncedIssue.GitHubRepo.repoName,
