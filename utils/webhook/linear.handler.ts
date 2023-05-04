@@ -928,7 +928,9 @@ export async function linearWebhookHandler(
                 );
             }
 
-            const modifiedBody = await replaceMentions(data.body, "linear").replace("sync-github:", "");
+            const modifiedBody = (
+                await replaceMentions(data.body, "linear")
+            ).replace("sync-github:", "");
             const footer = getGitHubFooter(data.user?.name);
 
             const { error: commentError } = await createComment({
