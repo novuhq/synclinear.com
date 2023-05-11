@@ -51,6 +51,7 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
             }
         }
     } catch (e) {
+        console.error(e);
         return res.status(e.statusCode || 500).send({
             success: false,
             message: e.message

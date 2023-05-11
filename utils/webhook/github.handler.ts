@@ -148,7 +148,7 @@ export async function githubWebhookHandler(
     });
 
     console.log('Starting event ' + githubEvent + ' with action ' + action);
-    
+
     if (githubEvent === "issue_comment" && action === "created") {
         // Comment created
 
@@ -332,6 +332,7 @@ export async function githubWebhookHandler(
             select: { linearUserId: true }
         });
 
+        console.log('Creating issue');
         const createdIssueData = await linear.issueCreate({
             id: generateLinearUUID(),
             title: issue.title,
@@ -341,6 +342,9 @@ export async function githubWebhookHandler(
             assigneeId:
                 issue.assignee?.id && assignee ? assignee.linearUserId : null
         });
+
+        console.log(`Crearing issue for GitHub issue #${issue.number}. Linear Team Id: ${linearTeamId}, publicLabelId: ${publicLabelId}`)
+        console.log(createdIssueData);
 
         if (!createdIssueData.success) {
             const reason = `Failed to create ticket for GitHub issue #${issue.number}.`;
