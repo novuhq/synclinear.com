@@ -129,6 +129,7 @@ export async function githubWebhookHandler(
     const issuesEndpoint = `https://api.github.com/repos/${repoName}/issues`;
 
     if (!anonymousUser) {
+        console.log('Not anonymous user');
         // Map the user's GitHub username to their Linear username if not yet mapped
         await upsertUser(
             linear,
@@ -146,6 +147,8 @@ export async function githubWebhookHandler(
         }
     });
 
+    console.log('Starting event ' + githubEvent + ' with action ' + action);
+    
     if (githubEvent === "issue_comment" && action === "created") {
         // Comment created
 
@@ -315,6 +318,8 @@ export async function githubWebhookHandler(
             return reason;
         }
 
+        console.log('running create issue flow');
+
         let modifiedDescription = await replaceMentions(issue.body, "github");
         modifiedDescription = replaceImgTags(modifiedDescription);
 
@@ -345,11 +350,11 @@ export async function githubWebhookHandler(
 
         const createdIssue = await createdIssueData.issue;
 
-        if (!createdIssue)
+        if (!createdIssue) {
             console.log(
                 `Failed to fetch ticket I just created for GitHub issue #${issue.number}.`
             );
-        else {
+        } else {
             const team = await createdIssue.team;
 
             if (!team) {
