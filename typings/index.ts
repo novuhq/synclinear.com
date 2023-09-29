@@ -1,3 +1,6 @@
+import { User } from "@octokit/webhooks-types";
+import { LINEAR } from "../utils/constants";
+
 export interface LinearWebhookPayload {
     action: "create" | "update" | "remove";
     type: string;
@@ -21,7 +24,6 @@ interface LinearData {
     teamId: string;
     projectId: string;
     cycleId?: string;
-    // previousIdentifiers: string[];
     creatorId: string;
     userId?: string;
     assigneeId: string;
@@ -61,6 +63,8 @@ export interface LinearTeam extends LinearObject {
     states: { nodes: LinearState[] };
 }
 
+export type TicketState = keyof typeof LINEAR.TICKET_STATES;
+
 export interface GitHubRepo {
     id: string;
     name: string;
@@ -89,5 +93,12 @@ export type MilestoneState = "open" | "closed";
 export type GitHubIssueLabel = {
     name: string;
     color: string;
+};
+
+export type Platform = "linear" | "github";
+
+export type GitHubMarkdownOptions = {
+    anonymous?: boolean;
+    sender?: User;
 };
 

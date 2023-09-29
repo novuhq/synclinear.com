@@ -7,7 +7,7 @@ import { GITHUB } from "../utils/constants";
 import DeployButton from "./DeployButton";
 import {
     exchangeGitHubToken,
-    getGitHubRepos,
+    listReposForUser,
     getGitHubUser,
     getRepoWebhook,
     getGitHubAuthURL,
@@ -15,6 +15,7 @@ import {
     setGitHubWebook
 } from "../utils/github";
 import { Context } from "./ContextProvider";
+import Select from "./Select";
 
 interface IProps {
     onAuth: (apiKey: string) => void;
@@ -30,6 +31,7 @@ const GitHubAuthButton = ({
     restored
 }: IProps) => {
     const [repos, setRepos] = useState<GitHubRepo[]>([]);
+    const [reposLoading, setReposLoading] = useState(false);
     const [chosenRepo, setChosenRepo] = useState<GitHubRepo>();
     const [deployed, setDeployed] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -58,11 +60,11 @@ const GitHubAuthButton = ({
 
         // Exchange auth code for access token
         const refreshToken = authResponse.get("code");
+
         exchangeGitHubToken(refreshToken)
             .then(body => {
                 if (body.access_token) setGitHubToken(body.access_token);
                 else {
-                    alert("No access token returned. Please try again.");
                     clearURLParams();
                     localStorage.removeItem(GITHUB.STORAGE_KEY);
                 }
@@ -81,21 +83,32 @@ const GitHubAuthButton = ({
 
     // Fetch the user's repos when a token is available
     useEffect(() => {
-        if (!gitHubToken) return;
-        if (gitHubUser?.id) return;
+        if (!gitHubToken || gitHubUser?.id) return;
 
         onAuth(gitHubToken);
 
-        getGitHubRepos(gitHubToken)
-            .then(res => {
-                if (!res?.length) throw new Error("No repos retrieved");
-                setRepos(
-                    res?.map(repo => {
-                        return { id: repo.id, name: repo.full_name };
-                    }) ?? []
-                );
-            })
-            .catch(err => alert(`Error fetching repos: ${err}`));
+        const startingPage = 0;
+
+        const listReposRecursively = async (page: number): Promise<void> => {
+            const res = await listReposForUser(gitHubToken, page);
+
+            if (!res || res.length < 1) {
+                setReposLoading(false);
+                return;
+            }
+
+            setRepos((current: GitHubRepo[]) => [
+                ...current,
+                ...(res?.map?.(repo => {
+                    return { id: repo.id, name: repo.full_name };
+                }) ?? [])
+            ]);
+
+            return await listReposRecursively(page + 1);
+        };
+
+        setReposLoading(true);
+        listReposRecursively(startingPage);
 
         getGitHubUser(gitHubToken)
             .then(res => setGitHubUser({ id: res.id, name: res.login }))
@@ -141,7 +154,7 @@ const GitHubAuthButton = ({
         if (!chosenRepo || deployed) return;
 
         const webhookSecret = `${uuid()}`;
-        saveGitHubContext(chosenRepo, webhookSecret).catch(err =>
+        saveGitHubContext(chosenRepo, webhookSecret, gitHubToken).catch(err =>
             alert(`Error saving repo to DB: ${err}`)
         );
 
@@ -180,25 +193,18 @@ const GitHubAuthButton = ({
                 {!!gitHubToken && <CheckIcon className="w-6 h-6" />}
             </button>
             {repos?.length > 0 && gitHubUser && restored && (
-                <div className="flex flex-col items-center space-y-4">
-                    <select
-                        name="GitHub repository"
-                        disabled={loading}
-                        onChange={e => {
-                            setChosenRepo(
-                                repos.find(repo => repo.id == e.target.value)
-                            );
-                        }}
-                    >
-                        <option value="" disabled selected>
-                            4. Select your repo
-                        </option>
-                        {repos.map(repo => (
-                            <option key={repo.id} value={repo.id}>
-                                {repo.name}
-                            </option>
-                        ))}
-                    </select>
+                <div className="flex flex-col w-full items-center space-y-4">
+                    <Select
+                        values={repos.map((repo: GitHubRepo) => ({
+                            value: repo.id,
+                            label: repo.name
+                        }))}
+                        onChange={repoId =>
+                            setChosenRepo(repos.find(repo => repo.id == repoId))
+                        }
+                        placeholder="4. Find your repo"
+                        loading={reposLoading}
+                    />
                     {chosenRepo && (
                         <DeployButton
                             loading={loading}

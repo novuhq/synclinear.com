@@ -11,7 +11,7 @@ import Tooltip from "./Tooltip";
 
 const Landing = () => {
     return (
-        <section className="w-screen min-h-screen center gap-40 py-40 px-6">
+        <section className="w-full min-h-screen center gap-40 py-40 px-6">
             <div className="mx-6 p-6 sm:p-12 w-full rounded-3xl bg-gray-900 center">
                 <div className="space-y-10 max-w-xl text-center">
                     <h2 className="text-gray-200">What does it do?</h2>
@@ -136,10 +136,9 @@ const Landing = () => {
             <div className="space-y-10 max-w-xl text-center center">
                 <h2 className="text-center">Pricing</h2>
                 <h3>
-                    SyncLinear.com is completely free. If you want to donate,
-                    subscribe to a <a href="https://cal.com/pricing">Cal.com</a>{" "}
-                    or <a href="https://neat.run/pro">Neat</a> plan to support
-                    the development.
+                    SyncLinear.com is completely free. If you want to support
+                    its development, please subscribe to a<br />
+                    <a href="https://cal.com/pricing">Cal.com</a> plan.
                 </h3>
             </div>
         </section>

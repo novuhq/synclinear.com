@@ -43,8 +43,9 @@
         "ngrok": "^4.3.3",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
+        "react-select": "^5.7.4",
         "uuid": "^9.0.0"
     },
-    "packageManager": "pnpm@8.1.0"
+    "packageManager": "pnpm@7.33.3"
 }
 

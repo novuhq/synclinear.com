@@ -1,13 +1,11 @@
-import { GITHUB, LINEAR, SHARED } from "../constants";
+import { GENERAL, GITHUB, LINEAR, SHARED } from "../constants";
 import { LinearWebhookPayload, MilestoneState } from "../../typings";
 import prisma from "../../prisma";
 import {
     decrypt,
-    formatJSON,
     getAttachmentQuery,
     getSyncFooter,
     isNumber,
-    replaceStrikethroughTags,
     skipReason
 } from "../index";
 import { LinearClient } from "@linear/sdk";
@@ -15,6 +13,7 @@ import {
     applyLabel,
     createComment,
     createLabel,
+    prepareMarkdownContent,
     replaceMentions,
     upsertUser
 } from "../../pages/api/utils";
@@ -24,6 +23,7 @@ import { components } from "@octokit/openapi-types";
 import { linearQuery } from "../apollo";
 import { createMilestone, getGitHubFooter, setIssueMilestone } from "../github";
 import { ApiError, getIssueUpdateError } from "../errors";
+import { Issue, User } from "@octokit/webhooks-types";
 
 export async function linearWebhookHandler(
     body: LinearWebhookPayload,
@@ -91,7 +91,10 @@ export async function linearWebhookHandler(
         : decrypt(linearApiKey, linearApiKeyIV);
 
     const linear = new LinearClient({
-        apiKey: linearKey
+        apiKey: linearKey,
+        headers: {
+            ...LINEAR.PUBLIC_QUERY_HEADERS
+        }
     });
 
     const ticketName = `${data.team?.key ?? ""}-${data.number}`;
@@ -228,8 +231,18 @@ export async function linearWebhookHandler(
                 return "Issue already exists on GitHub.";
             }
 
-            const modifiedDescription = await replaceMentions(
-                data.description,
+            let markdown = data.description;
+
+            // Re-fetching the issue description returns it with public image URLs
+            if (markdown?.match(GENERAL.INLINE_IMG_TAG_REGEX)) {
+                const publicIssue = await linear.issue(data.id);
+                if (publicIssue?.description) {
+                    markdown = publicIssue.description;
+                }
+            }
+
+            const modifiedDescription = await prepareMarkdownContent(
+                markdown,
                 "linear"
             );
 
@@ -244,11 +257,10 @@ export async function linearWebhookHandler(
                     body: `${
                         modifiedDescription ?? ""
                     }\n\n<sub>${getSyncFooter()} | [${ticketName}](${url})</sub>`,
-                    assignees: [
-                        data.assigneeId && assignee?.githubUsername
-                            ? assignee?.githubUsername
-                            : ""
-                    ]
+                    ...(data.assigneeId &&
+                        assignee?.githubUsername && {
+                            assignees: [assignee?.githubUsername]
+                        })
                 },
                 headers: {
                     Authorization: githubAuthHeader,
@@ -262,18 +274,17 @@ export async function linearWebhookHandler(
                         sync.linearUserId === (data.userId ?? data.creatorId)
                 )
             ) {
-                inviteMember(data.creatorId, data.teamId, repoFullName, linear);
+                await inviteMember(
+                    data.creatorId,
+                    data.teamId,
+                    repoFullName,
+                    linear
+                );
             }
 
             if (createdIssueResponse.statusCode > 201) {
                 console.log(
-                    `Failed to create GitHub issue for ${data.team.key}-${
-                        data.number
-                    }, received status code ${
-                        createdIssueResponse.statusCode
-                    }, body of ${formatJSON(
-                        JSON.parse(createdIssueResponse.body)
-                    )}.`
+                    `Failed to create GitHub issue for ${data.team.key}-${data.number} with status ${createdIssueResponse.statusCode}.`
                 );
 
                 throw new ApiError(
@@ -298,11 +309,9 @@ export async function linearWebhookHandler(
                 linearQuery(attachmentQuery, linearKey).then(response => {
                     if (!response?.data?.attachmentCreate?.success) {
                         console.log(
-                            `Failed to create attachment on ${ticketName} for GitHub issue #${
+                            `Failed to add attachment to ${ticketName} for GitHub issue #${
                                 createdIssueData.number
-                            }, received response ${
-                                response?.error ?? response?.data ?? ""
-                            }.`
+                            }: ${response?.error || ""}.`
                         );
                     } else {
                         console.log(
@@ -477,12 +486,19 @@ export async function linearWebhookHandler(
 
         // Description change
         if (updatedFrom.description && actionType === "Issue") {
-            let modifiedDescription = await replaceMentions(
-                data.description,
+            let markdown = data.description;
+
+            if (markdown?.match(GENERAL.INLINE_IMG_TAG_REGEX)) {
+                const publicIssue = await linear.issue(data.id);
+                if (publicIssue?.description) {
+                    markdown = publicIssue.description;
+                }
+            }
+
+            const modifiedDescription = await prepareMarkdownContent(
+                markdown,
                 "linear"
             );
-
-            modifiedDescription = replaceStrikethroughTags(modifiedDescription);
 
             const updatedIssueResponse = await got.patch(
                 `${GITHUB.REPO_ENDPOINT}/${syncedIssue.GitHubRepo.repoName}/issues/${syncedIssue.githubIssueNumber}`,
@@ -659,13 +675,26 @@ export async function linearWebhookHandler(
 
         // Assignee change
         if ("assigneeId" in updatedFrom) {
-            const assigneeEndpoint = `${GITHUB.REPO_ENDPOINT}/${syncedIssue.GitHubRepo.repoName}/issues/${syncedIssue.githubIssueNumber}/assignees`;
+            // Remove all assignees before re-assigning to avoid false re-assignment events
+            const issueEndpoint = `${GITHUB.REPO_ENDPOINT}/${syncedIssue.GitHubRepo.repoName}/issues/${syncedIssue.githubIssueNumber}`;
 
-            // Assignee added
-            const assignee = data.assigneeId
+            const issueResponse = await got.get(issueEndpoint, {
+                headers: {
+                    Authorization: githubAuthHeader,
+                    "User-Agent": userAgentHeader
+                },
+                responseType: "json"
+            });
+
+            const prevAssignees = (
+                (await issueResponse.body) as Issue
+            ).assignees?.map((assignee: User) => assignee?.login);
+
+            // Set new assignee
+            const newAssignee = data?.assigneeId
                 ? await prisma.user.findFirst({
                       where: {
-                          linearUserId: data.assigneeId
+                          linearUserId: data?.assigneeId
                       },
                       select: {
                           githubUsername: true
@@ -673,10 +702,20 @@ export async function linearWebhookHandler(
                   })
                 : null;
 
-            if (assignee) {
+            if (data?.assigneeId && !newAssignee?.githubUsername) {
+                console.log(
+                    `Skipping assignee for ${ticketName} as no GitHub username was found for Linear user ${data.assigneeId}.`
+                );
+            } else if (prevAssignees?.includes(newAssignee?.githubUsername)) {
+                console.log(
+                    `Skipping assignee for ${ticketName} as Linear user ${data.assigneeId} is already assigned.`
+                );
+            } else {
+                const assigneeEndpoint = `${GITHUB.REPO_ENDPOINT}/${syncedIssue.GitHubRepo.repoName}/issues/${syncedIssue.githubIssueNumber}/assignees`;
+
                 const response = await got.post(assigneeEndpoint, {
                     json: {
-                        assignees: [assignee.githubUsername]
+                        assignees: [newAssignee?.githubUsername]
                     },
                     headers: {
                         Authorization: githubAuthHeader,
@@ -698,54 +737,30 @@ export async function linearWebhookHandler(
                         `Added assignee to GitHub issue #${syncedIssue.githubIssueNumber} for ${ticketName}.`
                     );
                 }
-            } else {
-                console.log(
-                    `Skipping assignee for ${ticketName} as no GitHub username was found for Linear user ${data.assigneeId}.`
-                );
-            }
 
-            // Remove previous assignee only if reassigned or deassigned explicitly
-            if (
-                updatedFrom.assigneeId !== null &&
-                (assignee || data.assigneeId === undefined)
-            ) {
-                const prevAssignee = await prisma.user.findFirst({
-                    where: {
-                        linearUserId: updatedFrom.assigneeId
+                // Remove old assignees on GitHub
+                const unassignResponse = await got.delete(assigneeEndpoint, {
+                    json: {
+                        assignees: [prevAssignees]
                     },
-                    select: {
-                        githubUsername: true
+                    headers: {
+                        Authorization: githubAuthHeader,
+                        "User-Agent": userAgentHeader
                     }
                 });
 
-                if (prevAssignee) {
-                    const response = await got.delete(assigneeEndpoint, {
-                        json: {
-                            assignees: [prevAssignee.githubUsername]
-                        },
-                        headers: {
-                            Authorization: githubAuthHeader,
-                            "User-Agent": userAgentHeader
-                        }
-                    });
-
-                    if (response.statusCode > 201) {
-                        console.log(
-                            getIssueUpdateError(
-                                "assignee",
-                                data,
-                                syncedIssue,
-                                response
-                            )
-                        );
-                    } else {
-                        console.log(
-                            `Removed assignee on GitHub issue #${syncedIssue.githubIssueNumber} for ${ticketName}.`
-                        );
-                    }
+                if (unassignResponse.statusCode > 201) {
+                    console.log(
+                        getIssueUpdateError(
+                            "assignee",
+                            data,
+                            syncedIssue,
+                            unassignResponse
+                        )
+                    );
                 } else {
                     console.log(
-                        `Skipping assignee removal for ${ticketName} as no GitHub username was found for Linear user ${updatedFrom.assigneeId}.`
+                        `Removed assignee from GitHub issue #${syncedIssue.githubIssueNumber} for ${ticketName}.`
                     );
                 }
             }
@@ -759,30 +774,34 @@ export async function linearWebhookHandler(
                 !priorityLabels[updatedFrom.priority]
             ) {
                 const reason = `Could not find a priority label for ${updatedFrom.priority} or ${data.priority}.`;
-                console.log(reason);
                 throw new ApiError(reason, 403);
             }
 
-            // Remove old priority label
             const prevPriorityLabel = priorityLabels[updatedFrom.priority];
-            const removedLabelResponse = await got.delete(
-                `${GITHUB.REPO_ENDPOINT}/${syncedIssue.GitHubRepo.repoName}/issues/${syncedIssue.githubIssueNumber}/labels/${prevPriorityLabel.name}`,
-                {
-                    headers: {
-                        Authorization: githubAuthHeader,
-                        "User-Agent": userAgentHeader
-                    }
-                }
-            );
 
-            if (removedLabelResponse.statusCode > 201) {
-                console.log(
-                    `Did not remove priority label "${prevPriorityLabel.name}".`
+            // Remove old priority label
+            try {
+                const removedLabelResponse = await got.delete(
+                    `${GITHUB.REPO_ENDPOINT}/${syncedIssue.GitHubRepo.repoName}/issues/${syncedIssue.githubIssueNumber}/labels/${prevPriorityLabel.name}`,
+                    {
+                        headers: {
+                            Authorization: githubAuthHeader,
+                            "User-Agent": userAgentHeader
+                        }
+                    }
                 );
-            } else {
-                console.log(
-                    `Removed priority "${prevPriorityLabel.name}" from issue #${syncedIssue.githubIssueNumber}.`
-                );
+
+                if (removedLabelResponse.statusCode > 201) {
+                    console.log(
+                        `Did not remove priority label "${prevPriorityLabel.name}".`
+                    );
+                } else {
+                    console.log(
+                        `Removed priority "${prevPriorityLabel.name}" from issue #${syncedIssue.githubIssueNumber}.`
+                    );
+                }
+            } catch (e) {
+                console.log("Could not remove previous priority label.");
             }
 
             if (data.priority === 0) {
@@ -799,7 +818,6 @@ export async function linearWebhookHandler(
             });
 
             if (error) {
-                console.log("Could not create label.");
                 throw new ApiError("Could not create label.", 403);
             }
 
@@ -816,12 +834,9 @@ export async function linearWebhookHandler(
             });
 
             if (applyLabelError) {
-                console.log("Could not apply label.");
                 throw new ApiError("Could not apply label.", 403);
             } else {
-                console.log(
-                    `Applied priority label "${labelName}" to issue #${syncedIssue.githubIssueNumber}.`
-                );
+                return `Applied priority label "${labelName}" to issue #${syncedIssue.githubIssueNumber}.`;
             }
         }
 
@@ -949,7 +964,7 @@ export async function linearWebhookHandler(
                 );
             } else {
                 console.log(
-                    `Synced comment [${data.id}] for ${data.issue?.id} on GitHub issue #${syncedIssue.githubIssueNumber} [${syncedIssue.githubIssueId}].`
+                    `Synced comment for GitHub issue #${syncedIssue.githubIssueNumber}.`
                 );
             }
         } else if (actionType === "Issue") {
@@ -973,8 +988,17 @@ export async function linearWebhookHandler(
                 return reason;
             }
 
-            const modifiedDescription = await replaceMentions(
-                data.description,
+            let markdown = data.description;
+
+            if (markdown?.match(GENERAL.INLINE_IMG_TAG_REGEX)) {
+                const publicIssue = await linear.issue(data.id);
+                if (publicIssue?.description) {
+                    markdown = publicIssue.description;
+                }
+            }
+
+            const modifiedDescription = await prepareMarkdownContent(
+                markdown,
                 "linear"
             );
 
@@ -993,23 +1017,16 @@ export async function linearWebhookHandler(
                     body: `${
                         modifiedDescription ?? ""
                     }\n\n<sub>${getSyncFooter()} | [${ticketName}](${url})</sub>`,
-                    assignees: [
-                        data.assigneeId && assignee?.githubUsername
-                            ? assignee?.githubUsername
-                            : ""
-                    ]
+                    ...(data.assigneeId &&
+                        assignee?.githubUsername && {
+                            assignees: [assignee?.githubUsername]
+                        })
                 }
             });
 
             if (createdIssueResponse.statusCode > 201) {
                 console.log(
-                    `Failed to create GitHub issue for ${data.team.key}-${
-                        data.number
-                    }, received status code ${
-                        createdIssueResponse.statusCode
-                    }, body of ${formatJSON(
-                        JSON.parse(createdIssueResponse.body)
-                    )}.`
+                    `Failed to create issue for ${data.team.key}-${data.number} with status ${createdIssueResponse.statusCode}.`
                 );
 
                 throw new ApiError(
@@ -1028,17 +1045,13 @@ export async function linearWebhookHandler(
                 repoFullName
             );
 
-            console.log(attachmentQuery, createdIssueData);
-
             await Promise.all([
                 linearQuery(attachmentQuery, linearKey).then(response => {
                     if (!response?.data?.attachmentCreate?.success) {
                         console.log(
-                            `Failed to create attachment on ${ticketName} for GitHub issue #${
+                            `Failed to add attachment to ${ticketName} for GitHub issue #${
                                 createdIssueData.number
-                            }, received response ${
-                                response?.error ?? response?.data ?? ""
-                            }.`
+                            }: ${response?.error || ""}.`
                         );
                     } else {
                         console.log(

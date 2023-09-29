@@ -2,8 +2,22 @@ import { LinearClient } from "@linear/sdk";
 import got from "got";
 import type { NextApiResponse } from "next/types";
 import prisma from "../../prisma";
-import { GitHubIssueLabel } from "../../typings";
+import {
+    GitHubIssueLabel,
+    GitHubMarkdownOptions,
+    Platform
+} from "../../typings";
 import { GITHUB } from "../../utils/constants";
+import { replaceImgTags, replaceStrikethroughTags } from "../../utils";
+import {
+    Issue,
+    IssueCommentCreatedEvent,
+    IssuesEvent,
+    Repository,
+    User
+} from "@octokit/webhooks-types";
+import { ApiError } from "../../utils/errors";
+import { generateLinearUUID } from "../../utils/linear";
 
 /**
  * Server-only utility functions
@@ -115,10 +129,7 @@ export const mapUsernames = async (
  * @param {string} body the message to be sent
  * @returns {string} the message with all mentions replaced
  */
-export const replaceMentions = async (
-    body: string,
-    platform: "linear" | "github"
-) => {
+export const replaceMentions = async (body: string, platform: Platform) => {
     if (!body?.match(/(?<=@)\w+/g)) return body;
 
     console.log(`Replacing ${platform} mentions`);
@@ -130,16 +141,19 @@ export const replaceMentions = async (
         Array.from(mentionMatches)?.map(mention => mention?.[0]) ?? [];
 
     const userMentionReplacements = await mapUsernames(userMentions, platform);
+    const swapPlatform = platform === "linear" ? "github" : "linear";
 
     userMentionReplacements.forEach(mention => {
-        sanitizedBody = sanitizedBody.replace(
-            new RegExp(`@${mention[`${platform}Username`]}`, "g"),
-            `@${
-                mention[
-                    `${platform === "linear" ? "github" : "linear"}Username`
-                ]
-            }`
+        const mentionRegex = new RegExp(
+            `@${mention[`${platform}Username`]}`,
+            "g"
         );
+
+        sanitizedBody =
+            sanitizedBody?.replace(
+                mentionRegex,
+                `@${mention[`${swapPlatform}Username`]}`
+            ) || "";
     });
 
     return sanitizedBody;
@@ -166,7 +180,7 @@ export const createLabel = async ({
         {
             json: {
                 name: label.name,
-                color: label.color?.replace("#", ""),
+                color: label?.color?.replace("#", "") || "888888",
                 description: "Created by Linear-GitHub Sync"
             },
             headers: {
@@ -259,4 +273,86 @@ export const createComment = async ({
     }
 
     return { error };
+};
+
+export const prepareMarkdownContent = async (
+    markdown: string,
+    platform: Platform,
+    githubOptions: GitHubMarkdownOptions = {}
+): Promise<string> => {
+    try {
+        let modifiedMarkdown = await replaceMentions(markdown, platform);
+        modifiedMarkdown = await replaceStrikethroughTags(modifiedMarkdown);
+        modifiedMarkdown = await replaceImgTags(modifiedMarkdown);
+
+        if (githubOptions?.anonymous && githubOptions?.sender) {
+            return `>${modifiedMarkdown}\n\n—[${githubOptions.sender.login} on GitHub](${githubOptions.sender.html_url})`;
+        }
+
+        return modifiedMarkdown;
+    } catch (error) {
+        console.error(error);
+        return "An error occurred while preparing the markdown content.";
+    }
+};
+
+export const createLinearComment = async (
+    linear: LinearClient,
+    syncedIssue,
+    modifiedComment: string,
+    issue: Issue
+) => {
+    const comment = await linear.commentCreate({
+        id: generateLinearUUID(),
+        issueId: syncedIssue.linearIssueId,
+        body: modifiedComment || ""
+    });
+
+    if (!comment.success) {
+        throw new ApiError(
+            `Failed to create comment on Linear issue ${syncedIssue.linearIssueId} for GitHub issue ${issue.number}`,
+            500
+        );
+    } else {
+        console.log(`Created comment for GitHub issue #${issue.number}.`);
+    }
+};
+
+export const createAnonymousUserComment = async (
+    body: IssueCommentCreatedEvent,
+    repository: Repository,
+    sender: User
+) => {
+    const { issue }: IssuesEvent = body as unknown as IssuesEvent;
+
+    const syncedIssue = !!repository?.id
+        ? await prisma.syncedIssue.findFirst({
+              where: {
+                  githubIssueNumber: issue?.number,
+                  githubRepoId: repository.id
+              }
+          })
+        : null;
+
+    if (!syncedIssue) {
+        console.log("Could not find issue's corresponding team.");
+        throw new ApiError("Could not find issue's corresponding team.", 404);
+    }
+
+    const linearKey = process.env.LINEAR_APPLICATION_ADMIN_KEY;
+    const linear = new LinearClient({
+        apiKey: linearKey
+    });
+
+    const { comment: githubComment }: IssueCommentCreatedEvent = body;
+    const modifiedComment = await prepareMarkdownContent(
+        githubComment.body,
+        "github",
+        {
+            anonymous: true,
+            sender: sender
+        }
+    );
+
+    await createLinearComment(linear, syncedIssue, modifiedComment, issue);
 };

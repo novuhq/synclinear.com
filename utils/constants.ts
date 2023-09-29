@@ -12,16 +12,25 @@ export const LINEAR = {
     STORAGE_KEY: "linear-context",
     APP_URL: "https://linear.app",
     GITHUB_LABEL: "linear",
-    WEBHOOK_EVENTS: ["Issue", "Comment", "IssueLabel"]
+    GITHUB_LABEL_COLOR: "#4941DA",
+    WEBHOOK_EVENTS: ["Issue", "Comment", "IssueLabel"],
+    TICKET_STATES: {
+        todo: "Todo",
+        done: "Done",
+        canceled: "Canceled"
+    },
+    PUBLIC_QUERY_HEADERS: {
+        "public-file-urls-expire-in": "86400"
+    }
 };
 
 export const SHARED = {
     PRIORITY_LABELS: {
-        0: { name: "No priority", color: colors.gray["500"] },
-        1: { name: "Urgent", color: colors.red["600"] },
-        2: { name: "High priority", color: colors.orange["500"] },
-        3: { name: "Medium priority", color: colors.yellow["500"] },
-        4: { name: "Low priority", color: colors.green["600"] }
+        0: { name: "No priority", color: colors.gray["500"], value: 0 },
+        1: { name: "Urgent", color: colors.red["600"], value: 1 },
+        2: { name: "High priority", color: colors.orange["500"], value: 2 },
+        3: { name: "Medium priority", color: colors.yellow["500"], value: 3 },
+        4: { name: "Low priority", color: colors.green["600"], value: 4 }
     }
 };
 
@@ -50,8 +59,9 @@ export const TIMEOUTS = {
 export const GENERAL = {
     APP_NAME: "Linear-GitHub Sync",
     APP_URL: "https://synclinear.com",
-    CONTRIBUTE_URL: "https://github.com/calcom/linear-to-github",
+    CONTRIBUTE_URL: "https://github.com/calcom/synclinear.com",
     IMG_TAG_REGEX: /<img.*src=[\'|\"| ]?https?:\/\/(.*?)[\'|\"| ].*\/?>/g,
+    INLINE_IMG_TAG_REGEX: /!\[.*?\]\((https:\/\/(?!.*\?signature=).*?)\)/g,
     LOGIN_KEY: "login",
     SYNCED_ITEMS: [
         {

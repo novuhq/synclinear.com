@@ -3,7 +3,7 @@ import { getWebhookURL, getSyncFooter } from ".";
 import { linearQuery } from "./apollo";
 import { LINEAR, GENERAL, GITHUB } from "./constants";
 import { v4 as uuid } from "uuid";
-import { LinearTeam } from "../typings";
+import { LinearObject, LinearTeam, TicketState } from "../typings";
 import { WebhookUpdateInput } from "@linear/sdk/dist/_generated_documents";
 
 export const getLinearTokenURL = (): string => {
@@ -120,13 +120,12 @@ export const setLinearWebhook = async (token: string, teamID: string) => {
 
 export const updateLinearWebhook = async (
     token: string,
-    teamId: string,
+    teamName: string,
     updates: WebhookUpdateInput
 ) => {
-    const webhook = await getLinearWebhook(token, teamId);
-    console.log(webhook)
+    const webhook = await getLinearWebhook(token, teamName);
     if (!webhook?.id) {
-        console.error(`Could not find webhook for Linear team ${teamId}`);
+        console.error(`Could not find webhook for Linear team ${teamName}`);
         return;
     }
 
@@ -149,15 +148,17 @@ export const updateLinearWebhook = async (
     });
 };
 
-export const createLinearPublicLabel = async (
+export const createLinearLabel = async (
     token: string,
-    teamID: string
+    teamID: string,
+    labelName: string,
+    color: string
 ) => {
-    const mutation = `mutation CreateLabel($teamID: String!) {
+    const mutation = `mutation CreateLabel($teamID: String!, $labelName: String!, $color: String!) {
         issueLabelCreate(
             input: {
-                name: "Public"
-                color: "#2DA54E"
+                name: $labelName,
+                color: $color,
                 teamId: $teamID
             }
         ) {
@@ -169,7 +170,11 @@ export const createLinearPublicLabel = async (
         }
     }`;
 
-    return await linearQuery(mutation, token, { teamID });
+    return await linearQuery(mutation, token, {
+        teamID,
+        labelName,
+        color
+    });
 };
 
 export const getLinearCycle = async (
@@ -274,28 +279,40 @@ export const updateLinearCycle = async (
     });
 };
 
-export const saveLinearContext = async (token: string, team: LinearTeam) => {
-    const labels = [
-        ...(team.states?.nodes ?? []),
-        ...(team.labels?.nodes ?? [])
-    ];
+export const saveLinearContext = async (
+    token: string,
+    team: LinearTeam,
+    stateLabels: { [key in TicketState]: LinearObject }
+) => {
+    let publicLabel = team.labels?.nodes?.find?.(n => n.name === "Public");
 
-    if (!labels.find(n => n.name === "Public")) {
-        const { data } = await createLinearPublicLabel(token, team.id);
+    if (!publicLabel) {
+        const { data } = await createLinearLabel(
+            token,
+            team.id,
+            "Public",
+            "#2DA54E"
+        );
 
-        if (!data?.issueLabelCreate?.issueLabel)
+        if (!data?.issueLabelCreate?.issueLabel) {
             alert('Please create a Linear label called "Public"');
+        }
 
-        labels.push(data?.issueLabelCreate?.issueLabel);
+        publicLabel = data?.issueLabelCreate?.issueLabel;
+    }
+
+    if (!stateLabels) {
+        alert("Please select a label for each ticket state");
+        return;
     }
 
     const data = {
         teamId: team.id,
         teamName: team.name,
-        publicLabelId: labels.find(n => n.name === "Public")?.id,
-        canceledStateId: labels.find(n => n.name === "Canceled")?.id,
-        doneStateId: labels.find(n => n.name === "Done")?.id,
-        toDoStateId: labels.find(n => n.name === "Todo")?.id
+        publicLabelId: publicLabel?.id,
+        toDoStateId: stateLabels["todo"]?.id,
+        doneStateId: stateLabels["done"]?.id,
+        canceledStateId: stateLabels["canceled"]?.id
     };
 
     const response = await fetch("/api/linear/save", {
@@ -320,9 +337,21 @@ export const exchangeLinearToken = async (
     return await response.json();
 };
 
-export const checkForExistingTeam = async (teamId: string): Promise<any> => {
-    const response = await fetch(`/api/linear/team/${teamId}`, {
-        method: "GET"
+export const checkTeamWebhook = async (
+    teamId: string,
+    teamName: string,
+    token: string
+): Promise<any> => {
+    const response = await fetch("/api/linear/webhook", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            teamId,
+            teamName
+        })
     });
 
     return await response.json();

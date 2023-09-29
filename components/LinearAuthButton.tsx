@@ -1,6 +1,11 @@
 import { CheckIcon, DotsHorizontalIcon } from "@radix-ui/react-icons";
-import React, { useCallback, useEffect, useState } from "react";
-import { LinearContext, LinearObject, LinearTeam } from "../typings";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+    LinearContext,
+    LinearObject,
+    LinearTeam,
+    TicketState
+} from "../typings";
 import { clearURLParams } from "../utils";
 import { v4 as uuid } from "uuid";
 import { LINEAR } from "../utils/constants";
@@ -8,11 +13,12 @@ import DeployButton from "./DeployButton";
 import {
     exchangeLinearToken,
     getLinearContext,
-    checkForExistingTeam,
+    checkTeamWebhook,
     getLinearAuthURL,
     saveLinearContext,
     setLinearWebhook
 } from "../utils/linear";
+import Select from "./Select";
 
 interface IProps {
     onAuth: (apiKey: string) => void;
@@ -30,6 +36,9 @@ const LinearAuthButton = ({
     const [accessToken, setAccessToken] = useState("");
     const [teams, setTeams] = useState<Array<LinearTeam>>([]);
     const [chosenTeam, setChosenTeam] = useState<LinearTeam>();
+    const [ticketStates, setTicketStates] = useState<{
+        [key in TicketState]: LinearObject;
+    }>();
     const [user, setUser] = useState<LinearObject>();
     const [deployed, setDeployed] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -58,7 +67,6 @@ const LinearAuthButton = ({
             .then(body => {
                 if (body.access_token) setAccessToken(body.access_token);
                 else {
-                    alert("No Linear access token returned. Please try again.");
                     clearURLParams();
                     localStorage.removeItem(LINEAR.STORAGE_KEY);
                 }
@@ -68,7 +76,7 @@ const LinearAuthButton = ({
                 alert(`Error fetching access token: ${err}`);
                 setLoading(false);
             });
-    }, []);
+    }, [accessToken]);
 
     // Restore the Linear context from local storage
     useEffect(() => {
@@ -93,15 +101,15 @@ const LinearAuthButton = ({
             .catch(err => alert(`Error fetching labels: ${err}`));
     }, [accessToken]);
 
-    // Disable webhook deployment button if the team already exists
+    // Disable deployment button if the webhook and team are already saved
     useEffect(() => {
-        if (!chosenTeam) return;
+        if (!chosenTeam || !accessToken) return;
 
         setLoading(true);
 
-        checkForExistingTeam(chosenTeam.id)
+        checkTeamWebhook(chosenTeam.id, chosenTeam.name, accessToken)
             .then(res => {
-                if (res?.exists) {
+                if (res?.webhookExists && res?.teamInDB) {
                     setDeployed(true);
                     onDeployWebhook({
                         userId: user.id,
@@ -117,6 +125,18 @@ const LinearAuthButton = ({
                 alert(`Error checking for existing labels: ${err}`);
                 setLoading(false);
             });
+    }, [chosenTeam, accessToken, user]);
+
+    // Populate default ticket states when available
+    useEffect(() => {
+        const states = chosenTeam?.states?.nodes;
+        if (!states || !states?.length) return;
+
+        setTicketStates({
+            todo: states.find(s => s.name === LINEAR.TICKET_STATES.todo),
+            done: states.find(s => s.name === LINEAR.TICKET_STATES.done),
+            canceled: states.find(s => s.name === LINEAR.TICKET_STATES.canceled)
+        });
     }, [chosenTeam]);
 
     const openLinearAuth = () => {
@@ -131,7 +151,7 @@ const LinearAuthButton = ({
     const deployWebhook = useCallback(() => {
         if (!chosenTeam || deployed) return;
 
-        saveLinearContext(accessToken, chosenTeam).catch(err =>
+        saveLinearContext(accessToken, chosenTeam, ticketStates).catch(err =>
             alert(`Error saving labels to DB: ${err}`)
         );
 
@@ -144,10 +164,25 @@ const LinearAuthButton = ({
                     apiKey: accessToken
                 });
             })
-            .catch(err => alert(`Error deploying webhook: ${err}`));
+            .catch(err => {
+                if (err?.message?.includes("url not unique")) {
+                    alert("Webhook already deployed");
+                    setDeployed(true);
+                    return;
+                }
+
+                setDeployed(false);
+                alert(`Error deploying webhook: ${err}`);
+            });
 
         setDeployed(true);
-    }, [accessToken, chosenTeam, deployed, user]);
+    }, [accessToken, chosenTeam, deployed, user, ticketStates]);
+
+    const missingTicketState = useMemo<boolean>(() => {
+        return (
+            !ticketStates || Object.values(ticketStates).some(state => !state)
+        );
+    }, [ticketStates]);
 
     return (
         <div className="center space-y-8 w-80">
@@ -169,26 +204,57 @@ const LinearAuthButton = ({
             </button>
             {teams.length > 0 && restored && (
                 <div className="flex flex-col items-center w-full space-y-4">
-                    <select
-                        name="Linear team"
-                        disabled={deployed || loading}
-                        onChange={e =>
-                            setChosenTeam(
-                                teams.find(team => team.id === e.target.value)
-                            )
+                    <Select
+                        values={teams.map(team => ({
+                            value: team.id,
+                            label: team.name
+                        }))}
+                        onChange={(id: string) =>
+                            setChosenTeam(teams.find(team => team.id === id))
                         }
-                    >
-                        <option value="" disabled selected>
-                            3. Select your team
-                        </option>
-                        {teams.map(team => (
-                            <option key={team.id} value={team.id}>
-                                {team.name}
-                            </option>
-                        ))}
-                    </select>
+                        disabled={loading}
+                        placeholder="3. Find your team"
+                    />
+                    {chosenTeam?.states?.nodes && (
+                        <div className="w-full space-y-4 pb-4">
+                            {Object.entries(LINEAR.TICKET_STATES).map(
+                                ([key, label]: [TicketState, string]) => (
+                                    <div
+                                        key={key}
+                                        className="flex justify-between items-center gap-4"
+                                    >
+                                        <p className="whitespace-nowrap">
+                                            "{label}" label:
+                                        </p>
+                                        <Select
+                                            placeholder={
+                                                ticketStates?.[key]?.name ||
+                                                "Select a label"
+                                            }
+                                            values={chosenTeam.states.nodes.map(
+                                                state => ({
+                                                    value: state.id,
+                                                    label: state.name
+                                                })
+                                            )}
+                                            onChange={(id: string) =>
+                                                setTicketStates({
+                                                    ...ticketStates,
+                                                    [key]: chosenTeam.states.nodes.find(
+                                                        state => state.id === id
+                                                    )
+                                                })
+                                            }
+                                            disabled={loading}
+                                        />
+                                    </div>
+                                )
+                            )}
+                        </div>
+                    )}
                     {chosenTeam && (
                         <DeployButton
+                            disabled={missingTicketState}
                             loading={loading}
                             deployed={deployed}
                             onDeploy={deployWebhook}

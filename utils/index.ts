@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
-import { GitHubContext, LinearContext } from "../typings";
+import { GitHubContext, LinearContext, Platform } from "../typings";
 import { GENERAL, GITHUB } from "./constants";
 
 export const isDev = (): boolean => {
@@ -7,6 +7,11 @@ export const isDev = (): boolean => {
 };
 
 export const getWebhookURL = (): string => {
+    if (typeof window == "undefined") {
+        // TODO: Support ngrok URLs for local development
+        return "https://synclinear.com/api";
+    }
+
     if (window.location.hostname === "localhost") return "https://example.com";
     return `${window.location.origin}/api`;
 };
@@ -57,19 +62,26 @@ export const decrypt = (content: string, initVector: string): string => {
 };
 
 export const replaceImgTags = (text: string): string => {
-    if (!text) return "";
-    return text.replace(
-        GENERAL.IMG_TAG_REGEX,
-        (_, args) => `![image](https://${args})`
-    );
+    try {
+        const withInlineImages =
+            text?.replace(
+                GENERAL.IMG_TAG_REGEX,
+                (_, args) => `![image](https://${args})`
+            ) || "";
+
+        return withInlineImages;
+    } catch (error) {
+        console.error(error);
+        return text;
+    }
 };
 
 export const replaceStrikethroughTags = (text: string): string => {
     // To avoid unforeseen infinite loops, only replace the first 10 occurrences
-    const tildes = text.match(/~+/g);
-    if (tildes.length > 10) return;
+    const tildes = text?.match(/~+/g);
+    if (tildes?.length > 10) return text;
 
-    return text.replace(/(?<!\\)~(?!~)/g, "~~");
+    return text?.replace(/(?<!\\)~(?!~)/g, "~~") || text;
 };
 
 export const getSyncFooter = (): string => {
@@ -133,3 +145,4 @@ export const skipReason = (
 export const isNumber = (value: string | number): boolean => {
     return !isNaN(Number(value));
 };
+
