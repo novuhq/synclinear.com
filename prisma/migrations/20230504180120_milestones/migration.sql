@@ -4,6 +4,7 @@
   - A unique constraint covering the columns `[githubUserId,linearUserId,githubRepoId,linearTeamId]` on the table `syncs` will be added. If there are existing duplicate values, this will fail.
 
 */
+/*
 -- CreateTable
 CREATE TABLE "milestones" (
     "id" TEXT NOT NULL,
@@ -23,3 +24,4 @@ ALTER TABLE "milestones" ADD CONSTRAINT "milestones_linearTeamId_fkey" FOREIGN K
 
 -- AddForeignKey
 ALTER TABLE "milestones" ADD CONSTRAINT "milestones_githubRepoId_fkey" FOREIGN KEY ("githubRepoId") REFERENCES "github_repos"("repoId") ON DELETE RESTRICT ON UPDATE CASCADE;
+ */
