@@ -1,7 +1,8 @@
 repo_name: novuhq/synclinear.com
 report_id: 0d540b93bd0e89a70a900f58686d5339
+version: 0.1
 repo_type: Public
-timestamp: '2023-11-09T15:12:22+00:00'
+timestamp: '2024-01-04T14:58:07+00:00'
 requested_by: scopsy
 provider: github
 branch: main
@@ -15,6 +16,7 @@ tools:
   category: Languages & Frameworks
   sub_category: Languages
   image_url: https://img.stackshare.io/service/6727/css.png
+  detection_source_url: https://github.com/novuhq/synclinear.com
   detection_source: Repo Metadata
 - name: JavaScript
   description: Lightweight, interpreted, object-oriented language with first-class
@@ -25,6 +27,7 @@ tools:
   category: Languages & Frameworks
   sub_category: Languages
   image_url: https://img.stackshare.io/service/1209/javascript.jpeg
+  detection_source_url: https://github.com/novuhq/synclinear.com
   detection_source: Repo Metadata
 - name: SQL
   description: It is a domain-specific language used in programming
@@ -34,7 +37,8 @@ tools:
   category: Languages & Frameworks
   sub_category: Languages
   image_url: https://img.stackshare.io/service/2271/default_068d33483bba6b81ee13fbd4dc7aab9780896a54.png
-  detection_source: prisma/migrations/20230504180120_milestones/migration.sql
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/prisma/migrations/20220921033234_init/migration.sql
+  detection_source: prisma/migrations/20220921033234_init/migration.sql
   last_updated_by: tedspare
   last_updated_on: 2022-09-21 04:00:26.000000000 Z
 - name: TypeScript
@@ -46,6 +50,7 @@ tools:
   category: Languages & Frameworks
   sub_category: Languages
   image_url: https://img.stackshare.io/service/1612/bynNY5dJ.jpg
+  detection_source_url: https://github.com/novuhq/synclinear.com
   detection_source: Repo Metadata
 - name: Autoprefixer
   description: PostCSS plugin to parse CSS and add vendor prefixes to CSS rules
@@ -55,6 +60,7 @@ tools:
   category: Languages & Frameworks
   sub_category: CSS Pre-processors / Extensions
   image_url: https://img.stackshare.io/service/2202/72d087642cfce6fef6f2dabec5bf49e8_400x400.png
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: tedspare
   last_updated_on: 2022-09-12 21:42:54.000000000 Z
@@ -67,7 +73,7 @@ tools:
   category: Languages & Frameworks
   sub_category: Frameworks (Full Stack)
   image_url: https://img.stackshare.io/service/5936/nextjs.png
-  detection_source_url: package.json
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: Peer Richelsen
   last_updated_on: 2022-09-03 13:45:08.000000000 Z
@@ -80,6 +86,7 @@ tools:
   category: Languages & Frameworks
   sub_category: Frameworks (Full Stack)
   image_url: https://img.stackshare.io/service/1011/n1JRsFeB_400x400.png
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: Peer Richelsen
   last_updated_on: 2022-09-03 13:45:08.000000000 Z
@@ -93,7 +100,7 @@ tools:
   category: Libraries
   sub_category: Javascript UI Libraries
   image_url: https://img.stackshare.io/service/1020/OYIaJ1KK.png
-  detection_source_url: package.json
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: tedspare
   last_updated_on: 2023-07-13 20:45:50.000000000 Z
@@ -105,6 +112,7 @@ tools:
   category: Languages & Frameworks
   sub_category: Query Languages
   image_url: https://img.stackshare.io/service/3820/12972006.png
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: tedspare
   last_updated_on: 2022-09-13 22:06:45.000000000 Z
@@ -118,7 +126,7 @@ tools:
   category: Data Stores
   sub_category: Object Relational Mapper (ORM)
   image_url: https://img.stackshare.io/service/8680/Logo_Symbol_White.jpg
-  detection_source_url: package.json
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: Rijk van Zanten
   last_updated_on: 2023-04-18 14:58:35.000000000 Z
@@ -131,7 +139,8 @@ tools:
   category: Build, Test, Deploy
   sub_category: Code Review
   image_url: https://img.stackshare.io/service/3337/Q4L7Jncy.jpg
-  detection_source: package.json
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/.eslintrc
+  detection_source: ".eslintrc"
   last_updated_by: Peer Richelsen
   last_updated_on: 2022-09-03 13:45:08.000000000 Z
 - name: Git
@@ -142,6 +151,7 @@ tools:
   category: Build, Test, Deploy
   sub_category: Version Control System
   image_url: https://img.stackshare.io/service/1046/git.png
+  detection_source_url: https://github.com/novuhq/synclinear.com
   detection_source: Repo Metadata
 - name: GitHub Actions
   description: Automate your workflow from idea to production
@@ -151,6 +161,7 @@ tools:
   category: Build, Test, Deploy
   sub_category: Continuous Integration
   image_url: https://img.stackshare.io/service/11563/actions.png
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/.github/workflows/build.yml
   detection_source: ".github/workflows/build.yml"
   last_updated_by: Dima Grossman
   last_updated_on: 2022-12-12 16:07:05.000000000 Z
@@ -164,7 +175,7 @@ tools:
   category: Build, Test, Deploy
   sub_category: Code Review
   image_url: https://img.stackshare.io/service/7035/default_66f265943abed56bcdbfca1c866a4261b1fbb063.jpg
-  detection_source_url: package.json
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: Dima Grossman
   last_updated_on: 2022-12-12 16:07:05.000000000 Z
@@ -177,6 +188,7 @@ tools:
   category: Build, Test, Deploy
   sub_category: localhost Tools
   image_url: https://img.stackshare.io/service/1309/default_64cb55c1a8367f51e710697a54340fc497cfe6a1.png
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: tedspare
   last_updated_on: 2022-09-21 15:23:15.000000000 Z
@@ -188,6 +200,7 @@ tools:
   category: Build, Test, Deploy
   sub_category: Front End Package Manager
   image_url: https://img.stackshare.io/service/1120/lejvzrnlpb308aftn31u.png
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: Peer Richelsen
   last_updated_on: 2022-09-03 13:45:08.000000000 Z
@@ -200,6 +213,7 @@ tools:
   category: Languages & Frameworks
   sub_category: Languages
   image_url: https://img.stackshare.io/service/4631/default_c2062d40130562bdc836c13dbca02d318205a962.png
+  detection_source_url: https://github.com/novuhq/synclinear.com
   detection_source: Repo Metadata
 - name: "@types/node"
   description: TypeScript definitions for Node.js
@@ -211,7 +225,7 @@ tools:
   category: Libraries
   sub_category: npm Packages
   image_url: https://img.stackshare.io/package/15809/default_5e5e8ac63beda29f31f1844df64d4b8247570a66.png
-  detection_source_url: package.json
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: Dima Grossman
   last_updated_on: 2022-12-12 16:07:05.000000000 Z
@@ -225,7 +239,7 @@ tools:
   category: Libraries
   sub_category: npm Packages
   image_url: https://img.stackshare.io/package/15894/default_1d65e37e65b7f80761374f0202776043277d505d.png
-  detection_source_url: package.json
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: tedspare
   last_updated_on: 2023-07-13 20:45:50.000000000 Z
@@ -239,7 +253,7 @@ tools:
   category: Libraries
   sub_category: npm Packages
   image_url: https://img.stackshare.io/package/15982/default_8b5680d4e916298d08363c291a0d6e34c07ceb15.png
-  detection_source_url: package.json
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: Dima Grossman
   last_updated_on: 2022-12-12 16:07:05.000000000 Z
@@ -253,7 +267,7 @@ tools:
   category: Libraries
   sub_category: npm Packages
   image_url: https://img.stackshare.io/package/15980/default_732016a20524708efe7a4c77497fe9bfeea19ba6.png
-  detection_source_url: package.json
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: Dima Grossman
   last_updated_on: 2022-12-12 16:07:05.000000000 Z
@@ -267,7 +281,7 @@ tools:
   category: Libraries
   sub_category: npm Packages
   image_url: https://img.stackshare.io/package/15857/default_7c39a83d4acd952df89b1ebfdb94c8646324fbf1.png
-  detection_source_url: package.json
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: Dima Grossman
   last_updated_on: 2022-12-12 16:07:05.000000000 Z
@@ -281,7 +295,7 @@ tools:
   category: Libraries
   sub_category: npm Packages
   image_url: https://img.stackshare.io/package/15879/default_0b10af8ca19c215f781dc07442e75bdc831089d0.png
-  detection_source_url: package.json
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: Dima Grossman
   last_updated_on: 2022-12-12 16:07:05.000000000 Z
@@ -295,7 +309,7 @@ tools:
   category: Libraries
   sub_category: npm Packages
   image_url: https://img.stackshare.io/package/15806/default_98aa227f51aa9d787815ec3fd98d0ab2bfebbb91.png
-  detection_source_url: package.json
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: Dima Grossman
   last_updated_on: 2022-12-12 16:07:05.000000000 Z
@@ -309,7 +323,7 @@ tools:
   category: Libraries
   sub_category: npm Packages
   image_url: https://img.stackshare.io/package/15896/default_6e6e1d6bb189c8bb26c6410618bd597979578f39.png
-  detection_source_url: package.json
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: Dima Grossman
   last_updated_on: 2022-12-12 16:07:05.000000000 Z
@@ -323,7 +337,7 @@ tools:
   category: Libraries
   sub_category: npm Packages
   image_url: https://img.stackshare.io/package/15817/default_14fd11531839d935f920b6d55bd6f3528c890ad7.png
-  detection_source_url: package.json
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: tedspare
   last_updated_on: 2023-07-13 20:45:50.000000000 Z
@@ -337,7 +351,7 @@ tools:
   category: Libraries
   sub_category: npm Packages
   image_url: https://img.stackshare.io/package/16258/default_ab17554b7e80af3d234b14168ed61e75d43f8eee.png
-  detection_source_url: package.json
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: Peer Richelsen
   last_updated_on: 2022-09-03 13:45:08.000000000 Z
@@ -351,7 +365,7 @@ tools:
   category: Libraries
   sub_category: npm Packages
   image_url: https://img.stackshare.io/package/16012/default_7a88bebb451873cc63bd99007de5bd3bb8ef85de.png
-  detection_source_url: package.json
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: tedspare
   last_updated_on: 2022-09-12 21:42:54.000000000 Z
@@ -372,7 +386,7 @@ tools:
   category: Libraries
   sub_category: npm Packages
   image_url: https://img.stackshare.io/package/15808/default_14fd11531839d935f920b6d55bd6f3528c890ad7.png
-  detection_source_url: package.json
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: tedspare
   last_updated_on: 2023-07-13 20:45:50.000000000 Z
@@ -386,7 +400,7 @@ tools:
   category: Libraries
   sub_category: npm Packages
   image_url: https://img.stackshare.io/package/16452/default_d634bba6819a28b85a138b7ded782cadbfa6a482.png
-  detection_source_url: package.json
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: tedspare
   last_updated_on: 2023-07-13 20:45:50.000000000 Z
@@ -400,7 +414,7 @@ tools:
   category: Libraries
   sub_category: npm Packages
   image_url: https://img.stackshare.io/package/17398/default_2cd7ed1c123f2fca074a6f4b16c4e73d5bfe82be.png
-  detection_source_url: package.json
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: tedspare
   last_updated_on: 2022-09-12 21:42:54.000000000 Z
@@ -414,7 +428,7 @@ tools:
   category: Libraries
   sub_category: npm Packages
   image_url: https://img.stackshare.io/package/15916/default_e0a4fb1126d7400f419f0931cf1669947a5bc552.png
-  detection_source_url: package.json
+  detection_source_url: https://github.com/novuhq/synclinear.com/blob/main/package.json
   detection_source: package.json
   last_updated_by: tedspare
   last_updated_on: 2022-09-12 21:42:54.000000000 Z
