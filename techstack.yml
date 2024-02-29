@@ -2,7 +2,7 @@ repo_name: novuhq/synclinear.com
 report_id: 0d540b93bd0e89a70a900f58686d5339
 version: 0.1
 repo_type: Public
-timestamp: '2024-01-05T09:22:44+00:00'
+timestamp: '2024-02-29T18:06:02+00:00'
 requested_by: scopsy
 provider: github
 branch: main
@@ -65,7 +65,7 @@ tools:
   last_updated_by: tedspare
   last_updated_on: 2022-09-12 21:42:54.000000000 Z
 - name: Next.js
-  description: 'A small framework for server-rendered universal JavaScript apps '
+  description: A small framework for server-rendered universal JavaScript apps
   website_url: https://nextjs.org/
   version: 12.3.0
   open_source: true
@@ -166,7 +166,7 @@ tools:
   last_updated_by: Dima Grossman
   last_updated_on: 2022-12-12 16:07:05.000000000 Z
 - name: Prettier
-  description: 'Prettier is an opinionated code formatter. '
+  description: Prettier is an opinionated code formatter.
   website_url: https://prettier.io/
   version: 2.8.0
   license: MIT
